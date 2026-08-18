@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Crate preview</title>
+    <link rel="stylesheet" href="../src/styles.css" />
+    <style>
+      /* Harness only: stand-in cover art, since this page has no Spotify session. */
+      .demo-cover {
+        width: 100%;
+        height: 100%;
+        display: grid;
+        place-items: center;
+        font: 600 20px/1.2 var(--sf);
+        letter-spacing: -0.02em;
+        color: rgba(255, 255, 255, 0.9);
+        border-radius: 2px;
+        box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
+      }
+      .harness-note {
+        position: fixed;
+        left: 20px;
+        bottom: 16px;
+        margin: 0;
+        font: 400 12px/1.5 var(--sf);
+        color: var(--ink-faint);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app" id="app">
+      <header class="topbar">
+        <div class="segmented" role="tablist">
+          <button class="is-on">Albums</button>
+          <button>Playlists</button>
+        </div>
+      </header>
+      <div class="shelf" id="shelf">
+        <div class="shelf-stage" id="stage">
+          <div class="crate-floor"></div>
+        </div>
+        <p class="shelf-caption"><strong id="cap-name">—</strong><span id="cap-artist">—</span></p>
+      </div>
+      <p class="harness-note">Drag or use ← → . Static harness for the crate geometry.</p>
+    </div>
+
+    <script type="module">
+      const room =
+        'linear-gradient(rgba(0,0,0,0.24), rgba(0,0,0,0.46)), radial-gradient(116% 96% at 50% 0%, #33191f 0%, #180d10 56%, #0a0709 100%)'
+      const app = document.getElementById('app')
+      app.style.background = room
+      app.style.setProperty('--room', room)
+
+      const items = [
+        ['Blue Train', 'John Coltrane', '#3f77a8'],
+        ['Kind of Blue', 'Miles Davis', '#5b6291'],
+        ['Sunbather', 'Deafheaven', '#c06a7a'],
+        ['In Rainbows', 'Radiohead', '#a8663f'],
+        ['Voodoo', "D'Angelo", '#8a7a52'],
+        ['Homogenic', 'Björk', '#552b3a'],
+        ['Aja', 'Steely Dan', '#233b34'],
+        ['Rumours', 'Fleetwood Mac', '#4d3a22'],
+        ['Innerspeaker', 'Tame Impala', '#274046'],
+        ['Discovery', 'Daft Punk', '#5b3b22'],
+      ]
+
+      // Same function as src/CoverFlow.jsx — kept in step by hand for the harness.
+      const tanh = Math.tanh
+      const WINDOW = 6
+      const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi)
+      function sleevePose(offset) {
+        const d = Math.abs(offset)
+        const t = tanh(offset * 1.15)
+        const pop = 1 / (1 + (offset * 1.7) ** 2)
+        const x = offset * 108 + 54 * t
+        const z = 210 * pop - Math.min(d, WINDOW) * 56
+        const y = 18 * (1 - pop)
+        return {
+          transform: `translate3d(${x}px, ${y}px, ${z}px) rotateY(${-70 * t}deg) rotateZ(${-1.8 * t}deg) scale(${1 - 0.028 * Math.min(d, 4)})`,
+          faceFilter: `blur(${(Math.min(d, 4) * 0.9 * (1 - pop)).toFixed(2)}px)`,
+          faceDim: Math.min(0.9, Math.min(0.42, d * 0.12) + Math.max(0, d - WINDOW + 1.4) * 0.36),
+          zIndex: 300 - Math.round(d * 10),
+        }
+      }
+
+      const stage = document.getElementById('stage')
+      const nodes = items.map(([name, artist, tint], i) => {
+        const el = document.createElement('button')
+        el.className = 'sleeve'
+        el.innerHTML =
+          `<span class="sleeve-shadow"></span>` +
+          `<span class="sleeve-back"></span><span class="sleeve-top"></span>` +
+          `<span class="sleeve-edge sleeve-edge-left"><span class="sleeve-edge-text"><strong>${name}</strong><em>${artist}</em></span></span>` +
+          `<span class="sleeve-edge sleeve-edge-right"><span class="sleeve-edge-text"><strong>${name}</strong><em>${artist}</em></span></span>` +
+          `<span class="sleeve-front"><span class="demo-cover" style="background:linear-gradient(150deg,${tint},#2a2226)">${name}</span><span class="sleeve-gloss"></span></span>`
+        stage.appendChild(el)
+        return el
+      })
+
+      let pos = 0,
+        target = 0,
+        vel = 0,
+        raf = 0,
+        drag = null
+      const last = items.length - 1
+
+      function paint() {
+        nodes.forEach((node, i) => {
+          const p = sleevePose(i - pos)
+          node.style.transform = p.transform
+          node.style.setProperty('--face-filter', p.faceFilter)
+          node.style.setProperty('--face-dim', p.faceDim)
+          node.style.zIndex = p.zIndex
+          node.classList.toggle('is-active', Math.round(pos) === i)
+        })
+        const [name, artist] = items[clamp(Math.round(pos), 0, last)]
+        document.getElementById('cap-name').textContent = name
+        document.getElementById('cap-artist').textContent = artist
+      }
+      function tick() {
+        raf = 0
+        if (!drag) {
+          const diff = target - pos
+          vel = vel * 0.74 + diff * 0.2
+          pos += vel
+          if (Math.abs(diff) < 0.0015 && Math.abs(vel) < 0.0015) {
+            pos = target
+            vel = 0
+            paint()
+            return
+          }
+        }
+        paint()
+        raf = requestAnimationFrame(tick)
+      }
+      const kick = () => raf || (raf = requestAnimationFrame(tick))
+
+      const shelf = document.getElementById('shelf')
+      shelf.addEventListener('pointerdown', (e) => {
+        drag = { x: e.clientX, from: pos }
+        kick()
+      })
+      shelf.addEventListener('pointermove', (e) => {
+        if (!drag) return
+        let next = drag.from + (drag.x - e.clientX) / 96
+        if (next < 0) next *= 0.32
+        else if (next > last) next = last + (next - last) * 0.32
+        pos = next
+      })
+      const end = () => {
+        if (!drag) return
+        drag = null
+        target = clamp(Math.round(pos), 0, last)
+        kick()
+      }
+      shelf.addEventListener('pointerup', end)
+      shelf.addEventListener('pointercancel', end)
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight') target = Math.min(target + 1, last)
+        if (e.key === 'ArrowLeft') target = Math.max(target - 1, 0)
+        kick()
+      })
+      paint()
+    </script>
+  </body>
+</html>

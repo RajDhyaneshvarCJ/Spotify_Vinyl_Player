@@ -25,7 +25,7 @@ export default function App() {
   const [tracks, setTracks] = useState([])
   const [tracksLoading, setTracksLoading] = useState(false)
   const [tracksError, setTracksError] = useState(null)
-  const [palette, setPalette] = useState(['#4a2531', '#241419'])
+  const [palette, setPalette] = useState(['#33191f', '#180d10'])
   const [error, setError] = useState(configError())
   const [starting, setStarting] = useState(false)
 
@@ -145,7 +145,14 @@ export default function App() {
 
   // Exposed as a custom property too, so the fullscreen deck can paint itself
   // the same colour - a fullscreen element renders against black otherwise.
-  const room = `radial-gradient(120% 100% at 50% 0%, ${palette[0]} 0%, ${palette[1]} 60%, #120b0e 100%)`
+  //
+  // The cover's colour is now a tint on a dark room rather than the room itself:
+  // the extracted pair is capped darker in palette.js and a scrim sits over the
+  // gradient. On a bright sleeve the old version lit the whole screen up, which
+  // is exactly what you don't want from a record player in a dim room.
+  const room =
+    `linear-gradient(rgba(0, 0, 0, 0.24), rgba(0, 0, 0, 0.46)), ` +
+    `radial-gradient(116% 96% at 50% 0%, ${palette[0]} 0%, ${palette[1]} 56%, #0a0709 100%)`
   const backdrop = { background: room, '--room': room }
 
   if (booting) {

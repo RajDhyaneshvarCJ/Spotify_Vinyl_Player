@@ -4,6 +4,10 @@ import { useFullscreen } from './useFullscreen.js'
 import ScrollingText from './ScrollingText.jsx'
 
 const LINGER_MS = 3000
+// Horizontal travel that commits to the next/previous record.
+const SWIPE_COMMIT_PX = 60
+// A short, fast flick counts even if it didn't travel that far.
+const SWIPE_FLICK = 0.45 // px per ms
 
 function clock(ms) {
   const total = Math.floor(ms / 1000)
@@ -18,9 +22,13 @@ function clock(ms) {
  * is driven purely by elapsed-time ratio - it reads as a real turntable because
  * those are the two cues people actually watch.
  *
- * Fullscreen ("focus mode") drops the sleeve entirely and centres the record at
- * the largest size the viewport allows. Everything else fades out until you
- * move the pointer.
+ * Touch model:
+ *   tap the record          – play / pause
+ *   tap anywhere else       – bring the controls up for three seconds
+ *   swipe left / right      – previous / next, the composition following the
+ *                             finger and flying out in the direction you threw it
+ *
+ * Focus mode centres the record and floats the whole control stack over it.
  */
 export default function VinylPlayer({ state, controls, onBack, contextName }) {
   const track = state?.track_window?.current_track
@@ -31,11 +39,18 @@ export default function VinylPlayer({ state, controls, onBack, contextName }) {
   const deckRef = useRef(null)
   const fullscreen = useFullscreen(deckRef)
 
-  // One transient controls both the scrubber and, in focus mode, all chrome:
-  // it surfaces on deliberate interaction, then gets out of the way so the
-  // record is the only thing on screen.
+  // One transient controls the whole chrome stack: it surfaces on deliberate
+  // interaction, then gets out of the way so the record is the only thing there.
   const [chromeUp, setChromeUp] = useState(false)
   const hideTimer = useRef(null)
+
+  // Live swipe feedback + the direction of the last committed swipe.
+  const [swipeX, setSwipeX] = useState(0)
+  const [fly, setFly] = useState(null) // 'next' | 'prev' | null
+  const swipe = useRef(null)
+  const swiped = useRef(false)
+  const flyTimer = useRef(null)
+  const seeking = useRef(false)
 
   const reveal = useCallback(() => {
     setChromeUp(true)
@@ -49,17 +64,39 @@ export default function VinylPlayer({ state, controls, onBack, contextName }) {
     reveal()
   }, [track?.id, paused, reveal])
 
-  // In focus mode the pointer itself wakes the chrome, the way a video player
-  // behaves. Windowed, that would be noisy, so it is scoped to fullscreen.
+  // A mouse moving wakes the chrome the way a video player does. Scoped to
+  // focus mode: windowed, every stray cursor drift would flash the controls.
   useEffect(() => {
     if (!fullscreen.active) return
     const node = deckRef.current
     if (!node) return
-    node.addEventListener('pointermove', reveal)
-    return () => node.removeEventListener('pointermove', reveal)
+    const onMove = (e) => {
+      if (e.pointerType === 'mouse') reveal()
+    }
+    node.addEventListener('pointermove', onMove)
+    return () => node.removeEventListener('pointermove', onMove)
   }, [fullscreen.active, reveal])
 
-  useEffect(() => () => clearTimeout(hideTimer.current), [])
+  useEffect(
+    () => () => {
+      clearTimeout(hideTimer.current)
+      clearTimeout(flyTimer.current)
+    },
+    []
+  )
+
+  const skip = useCallback(
+    (dir) => {
+      controls.activate?.()
+      if (dir === 'next') controls.next()
+      else controls.previous()
+      setFly(dir)
+      clearTimeout(flyTimer.current)
+      flyTimer.current = setTimeout(() => setFly(null), 460)
+      reveal()
+    },
+    [controls, reveal]
+  )
 
   // Space toggles playback, F toggles focus mode - but only when the user
   // isn't focused on the scrubber, where Space belongs to the slider.
@@ -72,20 +109,82 @@ export default function VinylPlayer({ state, controls, onBack, contextName }) {
         reveal()
       }
       if (e.key.toLowerCase() === 'f') fullscreen.toggle()
-      if (e.key === 'ArrowRight') {
-        controls.next()
-        reveal()
-      }
-      if (e.key === 'ArrowLeft') {
-        controls.previous()
-        reveal()
-      }
+      if (e.key === 'ArrowRight') skip('next')
+      if (e.key === 'ArrowLeft') skip('prev')
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [controls, fullscreen, reveal])
+  }, [controls, fullscreen, reveal, skip])
+
+  // --- one gesture handler for the whole deck -----------------------------
+
+  function handlePointerDown(e) {
+    // The scrubber owns its own horizontal drag.
+    if (e.target.closest('.scrubber')) {
+      seeking.current = true
+      reveal()
+      return
+    }
+    seeking.current = false
+    swiped.current = false
+    swipe.current = { x: e.clientX, y: e.clientY, t: performance.now(), axis: null }
+  }
+
+  function handlePointerMove(e) {
+    const s = swipe.current
+    if (!s) return
+    // A mouse that was released outside the deck leaves no pointerup behind;
+    // without this, the next hover would drag the composition.
+    if (e.pointerType === 'mouse' && e.buttons === 0) {
+      swipe.current = null
+      setSwipeX(0)
+      return
+    }
+    const dx = e.clientX - s.x
+    const dy = e.clientY - s.y
+    if (!s.axis && Math.hypot(dx, dy) > 10) s.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+    if (s.axis !== 'x') return
+    swiped.current = true
+    // Damped so the composition leans into the gesture rather than sliding off.
+    setSwipeX(dx * 0.42)
+  }
+
+  function handlePointerUp(e) {
+    if (seeking.current) {
+      seeking.current = false
+      reveal()
+      return
+    }
+    const s = swipe.current
+    swipe.current = null
+    setSwipeX(0)
+    if (!s) return
+
+    const dx = e.clientX - s.x
+    const speed = Math.abs(dx) / Math.max(1, performance.now() - s.t)
+
+    if (s.axis === 'x' && (Math.abs(dx) > SWIPE_COMMIT_PX || speed > SWIPE_FLICK)) {
+      skip(dx < 0 ? 'next' : 'prev')
+      return
+    }
+
+    // A tap anywhere but the record brings the controls up. The record itself
+    // has its own job (play/pause), handled below.
+    if (!swiped.current && !e.target.closest('.disc')) reveal()
+  }
+
+  function handlePointerCancel() {
+    swipe.current = null
+    seeking.current = false
+    setSwipeX(0)
+  }
 
   const handleDiscClick = () => {
+    // A tap that concluded a swipe shouldn't also stop the music.
+    if (swiped.current) {
+      swiped.current = false
+      return
+    }
     // Synchronously, before anything else: iOS only grants audio permission
     // from inside the tap itself.
     controls.activate?.()
@@ -95,18 +194,14 @@ export default function VinylPlayer({ state, controls, onBack, contextName }) {
 
   // Tonearm geometry. The pivot sits at the record's top-right corner and the
   // arm hangs down from it, so POSITIVE rotation swings the head inward across
-  // the disc — the previous negative angles were sweeping it off to the right,
-  // which is why the arm was floating in empty space.
-  //
-  // With an arm ~62% of the disc's width, 8deg puts the head on the outer
-  // groove and 30deg lands it just outside the label. Resting angle parks it
-  // clear of the record entirely.
+  // the disc. With an arm ~62% of the disc's width, 8deg puts the head on the
+  // outer groove and 30deg lands it just outside the label. The resting angle
+  // parks it clear of the record entirely.
   const ARM_OUTER_DEG = 8
   const ARM_INNER_DEG = 30
   const ARM_REST_DEG = -6
-  const armAngle = !track || paused
-    ? ARM_REST_DEG
-    : ARM_OUTER_DEG + ratio * (ARM_INNER_DEG - ARM_OUTER_DEG)
+  const armAngle =
+    !track || paused ? ARM_REST_DEG : ARM_OUTER_DEG + ratio * (ARM_INNER_DEG - ARM_OUTER_DEG)
 
   if (!track) {
     return (
@@ -122,55 +217,70 @@ export default function VinylPlayer({ state, controls, onBack, contextName }) {
   const deckClass = [
     'deck',
     fullscreen.active ? 'is-focus' : '',
+    fullscreen.pseudo ? 'is-pseudo-fullscreen' : '',
     chromeUp ? 'chrome-up' : '',
+    fly ? `is-flying-${fly}` : '',
   ]
     .filter(Boolean)
     .join(' ')
 
   return (
-    <div className={deckClass} ref={deckRef}>
+    <div
+      className={deckClass}
+      ref={deckRef}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      onPointerLeave={handlePointerCancel}
+    >
       <div className="deck-controls">
         {!fullscreen.active && (
           <button className="ghost-button" onClick={onBack}>
             Back to shelf
           </button>
         )}
-        {fullscreen.supported && (
-          <button
-            className="icon-button deck-focus-toggle"
-            onClick={fullscreen.toggle}
-            aria-pressed={fullscreen.active}
-            aria-label={fullscreen.active ? 'Exit full screen' : 'Full screen'}
-            title={fullscreen.active ? 'Exit full screen (F)' : 'Full screen (F)'}
-          >
-            <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
-              {fullscreen.active ? (
-                // Arrows pointing in: collapse.
-                <path
-                  d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.9"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              ) : (
-                // Arrows pointing out: expand.
-                <path
-                  d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.9"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              )}
-            </svg>
-          </button>
-        )}
+        <button
+          className="icon-button deck-focus-toggle"
+          onClick={fullscreen.toggle}
+          aria-pressed={fullscreen.active}
+          aria-label={fullscreen.active ? 'Exit full screen' : 'Full screen'}
+          title={fullscreen.active ? 'Exit full screen (F)' : 'Full screen (F)'}
+        >
+          <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+            {fullscreen.active ? (
+              <path
+                d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.9"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ) : (
+              <path
+                d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.9"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
+          </svg>
+        </button>
       </div>
 
-      <div className="deck-stage">
+      <div
+        className="deck-stage"
+        style={
+          swipeX
+            ? // No transition while the finger is down: the composition must
+              // track it exactly, not chase it.
+              { transform: `translate3d(${swipeX}px, 0, 0)`, transition: 'none' }
+            : undefined
+        }
+      >
         {/* Disc sits behind and right of the sleeve - the "record pulled
             halfway out of the jacket" pose. In focus mode the sleeve drops
             away and this centres. */}
@@ -194,7 +304,7 @@ export default function VinylPlayer({ state, controls, onBack, contextName }) {
 
         {/* key= forces a remount on track change so the sleeve slides in fresh */}
         <div className="sleeve-large" key={track.id}>
-          {cover ? <img src={cover} alt="" /> : <div className="sleeve-blank" />}
+          {cover ? <img src={cover} alt="" draggable="false" /> : <div className="sleeve-blank" />}
         </div>
 
         {/* The arm gets its own layer, tracking the platter's box exactly.
@@ -210,75 +320,69 @@ export default function VinylPlayer({ state, controls, onBack, contextName }) {
         </div>
       </div>
 
-      <div className="deck-meta">
-        {contextName && <p className="deck-context">{contextName}</p>}
-        <h1 className="deck-title">
-          <ScrollingText text={track.name} />
-        </h1>
-        <p className="deck-artist">
-          <ScrollingText text={track.artists?.map((a) => a.name).join(', ') || ''} />
-        </p>
-      </div>
+      {/* Meta, transport and scrubber move as one block, so focus mode can
+          float the whole stack over the record without re-laying anything out. */}
+      <div className="deck-chrome">
+        <div className="deck-meta">
+          {contextName && <p className="deck-context">{contextName}</p>}
+          <h1 className="deck-title">
+            <ScrollingText text={track.name} />
+          </h1>
+          <p className="deck-artist">
+            <ScrollingText text={track.artists?.map((a) => a.name).join(', ') || ''} />
+          </p>
+        </div>
 
-      <div className="transport" onPointerDown={reveal} onFocus={reveal}>
-        <button
-          onClick={() => {
-            controls.previous()
-            reveal()
-          }}
-          aria-label="Previous track"
-          title="Previous track"
-        >
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-            <path d="M18 5v14L8 12l10-7zM6 5h2v14H6z" fill="currentColor" />
-          </svg>
-        </button>
-
-        <button
-          className="transport-play"
-          onClick={handleDiscClick}
-          aria-label={paused ? 'Play' : 'Pause'}
-          title={paused ? 'Play (Space)' : 'Pause (Space)'}
-        >
-          {paused ? (
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-              <path d="M8 5v14l11-7z" fill="currentColor" />
+        <div className="transport">
+          <button onClick={() => skip('prev')} aria-label="Previous track" title="Previous track">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <path d="M18 5v14L8 12l10-7zM6 5h2v14H6z" fill="currentColor" />
             </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-              <path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor" />
+          </button>
+
+          <button
+            className="transport-play"
+            onClick={() => {
+              controls.activate?.()
+              controls.toggle()
+              reveal()
+            }}
+            aria-label={paused ? 'Play' : 'Pause'}
+            title={paused ? 'Play (Space)' : 'Pause (Space)'}
+          >
+            {paused ? (
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                <path d="M8 5v14l11-7z" fill="currentColor" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                <path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor" />
+              </svg>
+            )}
+          </button>
+
+          <button onClick={() => skip('next')} aria-label="Next track" title="Next track">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <path d="M6 5l10 7L6 19V5zM16 5h2v14h-2z" fill="currentColor" />
             </svg>
-          )}
-        </button>
+          </button>
+        </div>
 
-        <button
-          onClick={() => {
-            controls.next()
-            reveal()
-          }}
-          aria-label="Next track"
-          title="Next track"
-        >
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-            <path d="M6 5l10 7L6 19V5zM16 5h2v14h-2z" fill="currentColor" />
-          </svg>
-        </button>
-      </div>
-
-      <div className="scrubber" onPointerDown={reveal} onFocus={reveal}>
-        <span className="scrubber-time">{clock(position)}</span>
-        <input
-          type="range"
-          min="0"
-          max={duration}
-          value={position}
-          onChange={(e) => {
-            controls.seek(Number(e.target.value))
-            reveal()
-          }}
-          aria-label="Playback position"
-        />
-        <span className="scrubber-time">{clock(duration)}</span>
+        <div className="scrubber">
+          <span className="scrubber-time">{clock(position)}</span>
+          <input
+            type="range"
+            min="0"
+            max={duration}
+            value={position}
+            onChange={(e) => {
+              controls.seek(Number(e.target.value))
+              reveal()
+            }}
+            aria-label="Playback position"
+          />
+          <span className="scrubber-time">{clock(duration)}</span>
+        </div>
       </div>
     </div>
   )

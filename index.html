@@ -2,14 +2,30 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- viewport-fit=cover so the deck can paint under the rounded corners and
+         the home indicator; the CSS pads itself back with env(safe-area-inset-*).
+         user-scalable=no because a two-finger pinch on the crate is never
+         intended as a zoom. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <title>Vinyl</title>
     <!-- Added to the iPad home screen, these make it launch without Safari's
-         address bar, which matters for a full-bleed record player. -->
+         address bar, which matters for a full-bleed record player.
+         `mobile-web-app-capable` is the standard name Safari now also reads;
+         the apple- one is kept for older iPadOS. -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Vinyl" />
-    <meta name="theme-color" content="#120b0e" />
+    <meta name="theme-color" content="#0a0709" />
+    <!-- The manifest is what makes the home-screen launch chromeless on iPadOS
+         16.4+ and on Chrome/Android. Without it, "Add to Home Screen" opens the
+         app inside Safari's UI, which is why full screen looked broken there. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" href="/icon-192.png" />
     <!-- No webfont link: SF Pro is Apple's system face and is reached through
          -apple-system / BlinkMacSystemFont in the stylesheet. It is not
          licensed for web delivery, so non-Apple machines fall back gracefully. -->

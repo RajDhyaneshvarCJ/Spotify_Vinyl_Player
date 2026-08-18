@@ -5,7 +5,7 @@
 // makes reading pixels off the canvas possible. If that ever changes the canvas
 // becomes tainted and getImageData throws — hence the fallback.
 
-const FALLBACK = ['#4a2531', '#241419']
+const FALLBACK = ['#33191f', '#180d10']
 const cache = new Map()
 
 function rgbToHex(r, g, b) {
@@ -84,7 +84,7 @@ export function extractPalette(url) {
             ]
             // The second colour sits further down the gradient, so it is
             // capped harder to keep the vignette falling away into darkness.
-            const [r, g, b] = capBrightness(...avg, i === 0 ? 0.3 : 0.16)
+            const [r, g, b] = capBrightness(...avg, i === 0 ? 0.2 : 0.1)
             return rgbToHex(r, g, b)
           })
 
