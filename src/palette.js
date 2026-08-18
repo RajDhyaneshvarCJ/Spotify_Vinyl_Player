@@ -12,6 +12,29 @@ function rgbToHex(r, g, b) {
   return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')
 }
 
+// Perceived brightness (ITU-R BT.601). Green dominates how bright a colour
+// looks, which is why the channels are not weighted equally.
+function luminance(r, g, b) {
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255
+}
+
+/**
+ * Keeps the room dark enough for light text.
+ *
+ * The interface is set in near-white, so a pale sleeve (cream, pastel, white
+ * artwork) would otherwise produce pale-on-pale and make everything unreadable.
+ * Rather than swapping the text colour per-cover — which would make the whole
+ * UI flicker between light and dark as you browse — the extracted colour is
+ * pulled down to a ceiling brightness. The hue survives, so a cream record
+ * still reads as warm; it just becomes a deep version of that warmth.
+ */
+function capBrightness(r, g, b, ceiling) {
+  const current = luminance(r, g, b)
+  if (current <= ceiling) return [r, g, b]
+  const scale = ceiling / current
+  return [r, g, b].map((v) => Math.round(v * scale))
+}
+
 export function extractPalette(url) {
   if (!url) return Promise.resolve(FALLBACK)
   if (cache.has(url)) return Promise.resolve(cache.get(url))
@@ -53,7 +76,17 @@ export function extractPalette(url) {
         const ranked = [...buckets.values()]
           .sort((a, b) => b.n - a.n)
           .slice(0, 2)
-          .map((c) => rgbToHex(Math.round(c.r / c.n), Math.round(c.g / c.n), Math.round(c.b / c.n)))
+          .map((c, i) => {
+            const avg = [
+              Math.round(c.r / c.n),
+              Math.round(c.g / c.n),
+              Math.round(c.b / c.n),
+            ]
+            // The second colour sits further down the gradient, so it is
+            // capped harder to keep the vignette falling away into darkness.
+            const [r, g, b] = capBrightness(...avg, i === 0 ? 0.3 : 0.16)
+            return rgbToHex(r, g, b)
+          })
 
         const result = ranked.length === 2 ? ranked : ranked.length === 1 ? [ranked[0], FALLBACK[1]] : FALLBACK
         cache.set(url, result)

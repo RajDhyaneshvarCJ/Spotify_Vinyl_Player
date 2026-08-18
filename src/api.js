@@ -23,10 +23,11 @@ async function request(path, options = {}) {
     throw new Error('Session expired. Sign in again.')
   }
   if (res.status === 403) {
-    // In Development Mode this usually means the listening account isn't on the
-    // app's allowlist, or isn't Premium. Worth calling out by name.
+    // Three quite different causes share this status, so name all of them
+    // rather than sending someone to re-check an account setting that is
+    // already correct.
     throw new Error(
-      'Spotify refused the request (403). Check that this account is Premium and is added to your app\'s user allowlist in the developer dashboard.'
+      `Spotify refused this request (403) at ${path.split('?')[0]}. That means either: the endpoint was withdrawn in the February 2026 API migration, or this playlist belongs to someone else (Development Mode only returns contents of your own playlists), or this account is not Premium and allowlisted in the developer dashboard.`
     )
   }
   if (res.status === 429) {
@@ -109,8 +110,8 @@ export async function playContext(deviceId, contextUri, offsetIndex = 0) {
 
 export async function getContextTracks(item) {
   if (item.kind === 'album') {
-    const data = await request(`/albums/${item.id}/tracks?limit=50`)
-    return (data.items || []).map((t, i) => ({
+    const tracks = await paginate(`/albums/${item.id}/tracks?limit=50`)
+    return tracks.map((t, i) => ({
       index: i,
       id: t.id,
       name: t.name,
@@ -118,9 +119,20 @@ export async function getContextTracks(item) {
       duration_ms: t.duration_ms,
     }))
   }
-  const data = await request(`/playlists/${item.id}/tracks?limit=50`)
-  return (data.items || [])
-    .map((it) => it.track)
+
+  // February 2026 migration: GET /playlists/{id}/tracks was REMOVED and now
+  // returns 403 for every Development Mode app. The replacement is /items,
+  // which also renamed each entry's `track` field to `item`.
+  //
+  // Reading `it.item ?? it.track` covers both shapes rather than assuming, so
+  // this keeps working if Spotify moves again.
+  //
+  // Note Spotify now only returns contents for playlists you own or collaborate
+  // on. Someone else's playlist returns metadata but no items, which is a
+  // platform restriction, not something the app can work around.
+  const entries = await paginate(`/playlists/${item.id}/items?limit=50`)
+  return entries
+    .map((it) => it.item ?? it.track)
     .filter((t) => t && t.id)
     .map((t, i) => ({
       index: i,

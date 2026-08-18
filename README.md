@@ -98,6 +98,11 @@ The redirect URI in `.env` does not match the one in the Spotify dashboard.
 Check for `localhost` instead of `127.0.0.1`, a trailing slash, or a different
 port number.
 
+**A playlist opens but the track list fails with a 403 error.**
+Spotify only returns the contents of playlists you own or collaborate on.
+Someone else's playlist, including Spotify's own editorial ones, will show its
+cover and name but no tracks. There is no way around this from the app side.
+
 **Every request fails with a 403 error.**
 Your account is not in the app's User Management allowlist, or it is not
 Premium. Both are required.
@@ -122,7 +127,11 @@ Spotify tightened access to its Web API in early 2026. Some endpoints were
 removed, library endpoints were reorganised, and search results were capped.
 
 This app only uses saved albums, playlists, track lists, and playback control.
-But if a request suddenly starts failing, check the current documentation at
+It reads playlist contents from `/playlists/{id}/items`, which replaced the
+older `/tracks` endpoint in that migration. The old one now returns 403 for
+every Development Mode app.
+
+If a request suddenly starts failing, check the current documentation at
 https://developer.spotify.com/documentation/web-api before assuming it is a bug
 in this code. The rules here change more often than the code does.
 
