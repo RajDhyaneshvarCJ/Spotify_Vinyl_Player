@@ -71,12 +71,14 @@ export default function VinylPlayer({ state, controls, onBack, contextName }) {
     else reveal()
   }, [chromeUp, hideChrome, reveal])
 
-  // Play drops the needle; pause lifts it.
+  // Play drops the needle; pause lifts it. Order matters: the playback command
+  // goes out first, so nothing about the sound effect can delay or prevent it.
   const play = useCallback(() => {
     controls.activate?.()
-    if (paused) needleDrop()
-    else needleLift()
+    const wasPaused = paused
     controls.toggle()
+    if (wasPaused) needleDrop()
+    else needleLift()
     reveal()
   }, [controls, paused, reveal])
 

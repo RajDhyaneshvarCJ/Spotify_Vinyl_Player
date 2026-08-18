@@ -122,6 +122,9 @@ export default function App() {
       // First thing, before any await: on iOS this is what buys permission to
       // make sound at all. Yielding first would forfeit the gesture.
       controls.activate?.()
+      // Decoration, and deliberately not awaited or depended on. needleDrop
+      // swallows its own failures so a sound effect can never keep a record from
+      // playing.
       needleDrop()
 
       setError(null)

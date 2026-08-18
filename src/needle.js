@@ -13,12 +13,32 @@
  */
 
 let ctx = null
+let closeTimer = 0
+
+/** Escape hatch: `localStorage.setItem('vinyl:mute', '1')` silences the needle. */
+function muted() {
+  try {
+    return localStorage.getItem('vinyl:mute') === '1'
+  } catch {
+    return false
+  }
+}
 
 function context() {
+  if (muted()) return null
   const Ctor = window.AudioContext || window.webkitAudioContext
   if (!Ctor) return null
-  if (!ctx) ctx = new Ctor()
+  if (!ctx || ctx.state === 'closed') ctx = new Ctor()
   if (ctx.state === 'suspended') ctx.resume()
+  // Held open, iOS keeps the audio session for this context and Spotify's own
+  // audio element can end up silenced. Closing it once the sound has finished
+  // hands the session straight back; the next drop makes a fresh one.
+  clearTimeout(closeTimer)
+  closeTimer = setTimeout(() => {
+    const dying = ctx
+    ctx = null
+    dying?.close?.()
+  }, 2500)
   return ctx
 }
 
@@ -36,6 +56,15 @@ function crackle(ac, seconds, popChance, hiss) {
 }
 
 export function needleDrop(volume = 0.5) {
+  try {
+    dropSound(volume)
+  } catch {
+    // A sound effect must never be able to stop the music: everything here is
+    // decoration, and the caller's next line is the actual playback command.
+  }
+}
+
+function dropSound(volume) {
   const ac = context()
   if (!ac) return
 
@@ -83,6 +112,14 @@ export function needleDrop(volume = 0.5) {
 
 /** The reverse: a short lift as the arm comes off the record. */
 export function needleLift(volume = 0.35) {
+  try {
+    liftSound(volume)
+  } catch {
+    /* decoration only */
+  }
+}
+
+function liftSound(volume) {
   const ac = context()
   if (!ac) return
   const t = ac.currentTime
