@@ -74,8 +74,8 @@ Open http://127.0.0.1:5173 in your browser. Again, `127.0.0.1` and not
 | Leave full screen | Press Escape or F, or click the icon again |
 
 On the deck, the progress bar and buttons fade out after three seconds so the
-record is the only thing on screen. Move the mouse or click the record to bring
-them back.
+cover and record are the only things on screen. Move the mouse or click the
+record to bring them back. Full screen keeps the same view, just larger.
 
 
 ## About the .env file
