@@ -1,111 +1,144 @@
 # Vinyl
 
-Your Spotify library as a crate of records. Runs locally, plays in the browser.
+Your Spotify library as a crate of records. Runs on your own machine, plays in
+the browser.
 
-Two views: a **shelf** of covers fanned in 3D that you flick through, and a **deck**
-where the record spins and the tonearm tracks the song.
+Three screens:
 
----
+1. **Shelf** - your albums and playlists fanned out in 3D. Flick through them.
+2. **Sleeve** - the track list for whichever record you picked.
+3. **Deck** - the record spins, the tonearm follows the song.
+
+
+## What you need first
+
+- A Spotify account with **Premium**. Playback in the browser will not work on a
+  free account.
+- Node.js installed (version 18 or newer).
+
 
 ## Setup
 
-### 1. Register the app on Spotify
+### Step 1: Register the app with Spotify
 
-At <https://developer.spotify.com/dashboard>, create an app and set:
+Go to https://developer.spotify.com/dashboard and create an app.
 
-- **Redirect URI** — `http://127.0.0.1:5173/callback`
-  Exactly that. Spotify no longer accepts `localhost` as a redirect host, and the
-  string must match character for character or you'll get `INVALID_CLIENT`.
-- **APIs used** — tick both **Web API** and **Web Playback SDK**.
+Fill in these settings:
 
-Then, under **Settings → User Management**, add your own Spotify account. In
-Development Mode only allowlisted accounts can use the app — everyone else gets
-403s. You get five slots.
+| Setting | Value |
+| --- | --- |
+| Redirect URI | `http://127.0.0.1:5173/callback` |
+| APIs used | Tick both **Web API** and **Web Playback SDK** |
 
-Copy the **Client ID** from the settings page.
+The redirect URI has to match exactly. Two things trip people up here:
 
-### 2. Configure
+- Use `127.0.0.1`, not `localhost`. Spotify stopped accepting `localhost`.
+- No trailing slash.
+
+Then open **Settings**, then **User Management**, and add your own Spotify
+account. Development Mode only lets allowlisted accounts in, so without this
+step every request comes back as a 403 error even though the app is yours. You
+get five slots.
+
+Finally, copy the **Client ID** from the settings page. You will need it next.
+
+### Step 2: Add your Client ID
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and paste your Client ID into `VITE_SPOTIFY_CLIENT_ID`.
+Open `.env` and paste your Client ID after `VITE_SPOTIFY_CLIENT_ID=`.
 
-`.env` is gitignored. Note that this app uses OAuth **PKCE**, which is designed
-for browser apps with no backend — there is no client secret involved anywhere,
-so nothing confidential ends up in the bundle. (Be aware that any `VITE_`
-variable *is* readable in the built JS. That's fine for a Client ID, which
-Spotify treats as public, but don't put real secrets in there.)
-
-### 3. Run
+### Step 3: Run it
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open <http://127.0.0.1:5173> — not `localhost`, or the redirect won't match.
+Open http://127.0.0.1:5173 in your browser. Again, `127.0.0.1` and not
+`localhost`, or the login redirect will not match.
 
----
 
-## Using it
+## Controls
 
-| Action | How |
+| What you want | How to do it |
 | --- | --- |
-| Move through the crate | Scroll, drag, or ← → |
-| Play the record in focus | Click it, or Enter |
-| Switch Albums / Playlists | Toggle at the top |
-| Jump back to the deck | Mini bar at the bottom |
-| Open a record's track list | Click the centred cover, or Enter |
-| Play from a track | Click any row in the list |
-| Play / pause | Click the record, or Space |
-| Next / previous track | Transport buttons, or arrow keys on the deck |
-| Full screen (record only) | **Full screen** button, or F |
-| Leave full screen | Esc, F, or the button |
+| Move through the crate | Scroll, drag, or press the left and right arrow keys |
+| Open a record | Click the cover in the middle, or press Enter |
+| Play from a track | Click any row in the track list |
+| Play or pause | Click the record itself, or press Space |
+| Skip tracks | The transport buttons, or arrow keys on the deck |
+| Go full screen | The expand icon, or press F |
+| Leave full screen | Press Escape or F, or click the icon again |
 
-In full screen the sleeve drops away, the record scales to fill the viewport,
-and all controls plus the cursor fade out after three seconds. Move the pointer
-to bring them back.
+On the deck, the progress bar and buttons fade out after three seconds so the
+record is the only thing on screen. Move the mouse or click the record to bring
+them back.
 
----
 
-## Requirements
+## About the .env file
 
-- **Spotify Premium** on the account you sign in with. The Web Playback SDK will
-  not stream on a free account — it throws an account error and nothing plays.
-- Since February 2026, the account that *registers* the developer app must also
-  be Premium.
-- Chrome, Edge, Firefox, or Safari. The SDK uses Encrypted Media Extensions, so
-  some hardened/privacy browser configurations will block playback.
+This app signs in using OAuth with PKCE, which is built for apps that have no
+backend server. There is no client secret involved at any point, so nothing
+confidential ends up in the code.
 
----
+One thing worth understanding: any variable starting with `VITE_` is readable in
+the built JavaScript. That is fine for a Client ID, which Spotify treats as
+public information. It would not be fine for a real secret, so do not add one.
 
-## If something breaks
+`.env` is listed in `.gitignore` and will not be committed.
 
-**`INVALID_CLIENT: Invalid redirect URI`** — the URI in `.env` doesn't byte-match
-the dashboard. Check for `localhost` vs `127.0.0.1`, a stray trailing slash, and
-the port.
 
-**403 on every request** — the account isn't in the app's User Management
-allowlist, or isn't Premium.
+## When something goes wrong
 
-**"No active device found" / nothing plays** — the SDK device hadn't registered
-yet when you hit play. Wait for it to connect and try again; the app calls
-`transferPlayback` before every play to claim the device.
+**The login page says INVALID_CLIENT or the redirect fails.**
+The redirect URI in `.env` does not match the one in the Spotify dashboard.
+Check for `localhost` instead of `127.0.0.1`, a trailing slash, or a different
+port number.
 
-**Covers load but the background stays plum** — colour extraction reads pixels
-off a canvas, which needs CORS headers from Spotify's image CDN. It falls back
-silently rather than crashing.
+**Every request fails with a 403 error.**
+Your account is not in the app's User Management allowlist, or it is not
+Premium. Both are required.
 
----
+**Nothing plays and there is no error.**
+The account you signed in with is probably not Premium. The Web Playback SDK
+refuses to stream on free accounts.
 
-## Worth knowing about the API surface
+**It says "No active device found".**
+The browser player had not finished connecting to Spotify when you pressed play.
+Wait a couple of seconds and try again. The app already retries once by itself.
 
-Spotify tightened Web API access in February–March 2026: several endpoint
-families were removed, library endpoints were consolidated, and search results
-were capped at 10. This app sticks to saved albums, playlists, album/playlist
-tracks, and player control — but if a call starts 404ing, check the current
-reference at <https://developer.spotify.com/documentation/web-api> rather than
-assuming it's a bug in the code. I'd rather you verify against live docs than
-trust my memory of an endpoint shape.
+**The covers load but the background stays a dull plum colour.**
+The app reads the album artwork to tint the background, which needs permission
+headers from Spotify's image servers. If that fails it quietly falls back to a
+default colour rather than breaking.
+
+
+## A note on the Spotify API
+
+Spotify tightened access to its Web API in early 2026. Some endpoints were
+removed, library endpoints were reorganised, and search results were capped.
+
+This app only uses saved albums, playlists, track lists, and playback control.
+But if a request suddenly starts failing, check the current documentation at
+https://developer.spotify.com/documentation/web-api before assuming it is a bug
+in this code. The rules here change more often than the code does.
+
+
+## What is real and what is illusion
+
+Worth knowing so nothing surprises you later.
+
+The record spins and the tonearm moves across it, but neither is reacting to the
+actual audio. Spotify's playback SDK gives this app the track position and
+length, not the sound itself. So the disc turns on a fixed loop and the arm is
+positioned purely from how far through the song you are.
+
+It reads as a real turntable because those are the two things people actually
+watch. But if you ever want the record to genuinely pulse with the music, that
+would need a different approach, and the Spotify SDK cannot provide it.
+
+
+Made with ♥ using Claude.

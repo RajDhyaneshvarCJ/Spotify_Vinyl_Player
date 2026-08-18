@@ -139,6 +139,9 @@ export default function App() {
     [deviceId, selected]
   )
 
+  // Exposed as a custom property too, so the fullscreen deck can paint itself
+  // the same colour - a fullscreen element renders against black otherwise.
+  const room = `radial-gradient(120% 100% at 50% 0%, ${palette[0]} 0%, ${palette[1]} 60%, #120b0e 100%)`
   const backdrop = { background: room, '--room': room }
 
   if (booting) {
