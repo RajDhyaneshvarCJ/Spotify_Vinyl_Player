@@ -1,0 +1,1103 @@
+:root {
+  --ink: #f6efe9;
+  --ink-dim: rgba(246, 239, 233, 0.62);
+  --ink-faint: rgba(246, 239, 233, 0.3);
+
+  --sleeve-w: 320px;
+  --sleeve-depth: 20px; /* thickness of the shelf sleeves, carries the spine */
+
+  /* SF Pro, reached the only way it is legitimately available: as the Apple
+     system face. It is not licensed for webfont delivery, so this stack degrades
+     to Segoe/Roboto/Helvetica off Apple hardware rather than shipping a copy. */
+  --sf: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+    'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  /* Belt and braces against the trackpad back-swipe: the JS handler consumes
+     the gesture, and this stops the browser treating any leftover horizontal
+     overscroll as history navigation. */
+  overscroll-behavior-x: none;
+}
+
+body {
+  font-family: var(--sf);
+  color: var(--ink);
+  background: #120b0e;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+.app {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  /* Palette shifts as covers change - the slow fade is the whole mood. */
+  transition: background 900ms ease;
+}
+
+/* ---------------------------------------------------------------- chrome */
+
+.topbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 20px;
+  flex: 0 0 auto;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(20px);
+}
+
+.segmented button {
+  border: 0;
+  background: transparent;
+  color: var(--ink-dim);
+  font: 600 15px/1 var(--sf);
+  letter-spacing: -0.01em;
+  padding: 9px 20px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 200ms ease, color 200ms ease;
+}
+
+.segmented button.is-on {
+  background: rgba(255, 255, 255, 0.92);
+  color: #241419;
+}
+
+.topbar-right {
+  position: absolute;
+  right: 20px;
+}
+
+.ghost-button {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  font: 600 13px/1 var(--sf);
+  padding: 9px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 180ms ease;
+}
+
+.ghost-button:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* Square, glyph-only control. Matches the ghost button's weight so a row of
+   mixed text and icon buttons still sits on one optical line. */
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 180ms ease;
+}
+
+.icon-button:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.solid-button {
+  border: 0;
+  background: var(--ink);
+  color: #241419;
+  font: 600 16px/1 var(--sf);
+  letter-spacing: -0.01em;
+  padding: 15px 30px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.solid-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.centered {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  text-align: center;
+  padding: 24px;
+  color: var(--ink-dim);
+}
+
+.gate .wordmark {
+  font: 700 clamp(56px, 12vw, 104px) / 0.9 var(--sf);
+  letter-spacing: -0.04em;
+  margin: 0;
+  color: var(--ink);
+}
+
+.gate p {
+  margin: 0;
+  font-size: 17px;
+}
+
+.fineprint {
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.error {
+  color: #ffc9b8;
+  font-size: 14px;
+  max-width: 46ch;
+  margin: 0;
+}
+
+.error.banner {
+  margin: 0 20px 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+/* Quiet status line - visible enough to explain a stall, quiet enough to
+   ignore once playback is running. */
+.status-pill {
+  margin: 0 auto 6px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+  font-size: 12px;
+  color: var(--ink-dim);
+  letter-spacing: 0.01em;
+}
+
+/* -------------------------------------------------------------- marquee */
+
+.marquee {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  /* The 20-character window. ch units track the actual font, so this stays
+     honest at any size. */
+  max-width: 20ch;
+  white-space: nowrap;
+}
+
+.marquee.is-static {
+  max-width: 20ch;
+}
+
+.marquee-track {
+  display: inline-flex;
+  animation-name: marquee;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* Each copy carries its own trailing gap, so -50% lands copy two exactly where
+   copy one began. A flex `gap` would break that maths. */
+.marquee-copy {
+  padding-right: 3ch;
+  flex: 0 0 auto;
+}
+
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ----------------------------------------------------------------- shelf */
+
+.shelf {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  perspective: 1500px;
+  touch-action: pan-y;
+  cursor: grab;
+  user-select: none;
+  overflow: hidden;
+}
+
+.shelf:active {
+  cursor: grabbing;
+}
+
+.shelf-stage {
+  position: relative;
+  width: 100%;
+  height: min(64vh, 580px);
+  transform-style: preserve-3d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Each sleeve is a box: a front face pushed forward by the full depth, and a
+   spine hinged at the box's left edge that fills the gap between. */
+.sleeve {
+  position: absolute;
+  width: var(--sleeve-w);
+  height: var(--sleeve-w);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform-style: preserve-3d;
+  /* The one animation that matters: records swinging open as you pass them. */
+  transition: transform 520ms cubic-bezier(0.22, 0.8, 0.24, 1);
+  cursor: pointer;
+}
+
+.sleeve-front {
+  position: absolute;
+  inset: 0;
+  transform: translateZ(var(--sleeve-depth));
+  transform-style: preserve-3d;
+}
+
+.sleeve-front img,
+.sleeve-blank {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 2px;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
+}
+
+.sleeve-blank {
+  background: linear-gradient(150deg, #3a2a30, #221619);
+}
+
+.sleeve.is-active .sleeve-front img {
+  box-shadow: 0 44px 96px rgba(0, 0, 0, 0.62);
+}
+
+/* The two side faces of the box. Each is hinged on the border it shares with
+   the front face and swung 90deg to span the depth. backface-visibility means
+   only the one actually facing the camera renders. */
+.sleeve-edge {
+  position: absolute;
+  top: 0;
+  width: var(--sleeve-depth);
+  height: 100%;
+  background: linear-gradient(90deg, #211619, #3a2b31 40%, #191113);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 16px;
+  overflow: hidden;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.sleeve-edge-left {
+  left: calc(var(--sleeve-depth) * -1);
+  transform-origin: 100% 50%;
+  transform: rotateY(90deg);
+  border-radius: 2px 0 0 2px;
+}
+
+.sleeve-edge-right {
+  right: calc(var(--sleeve-depth) * -1);
+  transform-origin: 0% 50%;
+  transform: rotateY(-90deg);
+  border-radius: 0 2px 2px 0;
+}
+
+.sleeve-edge-text {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.sleeve-edge-text strong {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.sleeve-edge-text em {
+  font-style: normal;
+  font-weight: 400;
+  opacity: 0.72;
+}
+
+.shelf-caption {
+  margin: 28px 0 0;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.shelf-caption strong {
+  font: 600 clamp(20px, 2.6vw, 26px) / 1.15 var(--sf);
+  letter-spacing: -0.02em;
+}
+
+.shelf-caption span {
+  font-size: 15px;
+  color: var(--ink-dim);
+}
+
+/* -------------------------------------------------------------- tracklist
+
+   The page between the crate and the deck: you have pulled a record out and
+   are reading the back of the sleeve before dropping the needle. */
+
+.tracks {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  padding: 4px 24px 32px;
+  overflow-y: auto;
+}
+
+.tracks-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+  width: min(760px, 100%);
+}
+
+.tracks-cover {
+  width: 168px;
+  height: 168px;
+  flex: 0 0 auto;
+  border-radius: 3px;
+  object-fit: cover;
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.55);
+}
+
+.tracks-title {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.tracks-kind {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.tracks-title h1 {
+  margin: 0;
+  font: 600 clamp(24px, 3.4vw, 36px) / 1.1 var(--sf);
+  letter-spacing: -0.02em;
+}
+
+.tracks-owner {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 15px;
+}
+
+.tracks-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.tracks-list {
+  width: min(760px, 100%);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.track-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 12px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--sf);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 160ms ease;
+}
+
+.track-row:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.track-num {
+  font-size: 13px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* The row that is currently on the deck keeps a steady marker rather than a
+   hover state, so you can see where you are after scrolling. */
+.track-row.is-playing .track-num,
+.track-row.is-playing .track-name {
+  color: #9fe6c4;
+}
+
+.track-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.track-name {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-artist {
+  font-size: 13px;
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-time {
+  font-size: 13px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 720px) {
+  .tracks-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .tracks-cover {
+    width: 132px;
+    height: 132px;
+  }
+}
+
+/* ------------------------------------------------------------------ deck */
+
+.deck {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 6px 24px 28px;
+}
+
+.deck-empty {
+  color: var(--ink-dim);
+}
+
+.deck-controls {
+  align-self: stretch;
+  display: flex;
+  align-items: center; /* text pill and round icon share one centre line */
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 34px;
+}
+
+.deck-focus-toggle {
+  margin-left: auto;
+}
+
+.deck-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: min(62vh, 560px);
+
+  /* One source of truth for the record's box. The platter and the tonearm
+     layer both read these, so the arm can never drift away from the disc. */
+  --disc-size: min(60vh, 540px);
+  /* 50% puts the disc's left edge on the sleeve's centre line, so exactly half
+     the record stays tucked inside the jacket. */
+  --disc-left: 50%;
+}
+
+.sleeve-large {
+  position: relative;
+  z-index: 2;
+  width: min(62vh, 560px);
+  height: min(62vh, 560px);
+  animation: sleeve-in 620ms cubic-bezier(0.22, 0.8, 0.24, 1);
+}
+
+.sleeve-large img,
+.sleeve-large .sleeve-blank {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 3px;
+  box-shadow: 0 40px 82px rgba(0, 0, 0, 0.58);
+}
+
+@keyframes sleeve-in {
+  from {
+    opacity: 0;
+    transform: translateX(-26px);
+  }
+}
+
+/* The disc peeks out from behind the sleeve, pulled halfway from the jacket. */
+/* The record and the arm layer occupy the same box; only their depth differs. */
+.platter,
+.tonearm-layer {
+  position: absolute;
+  left: var(--disc-left);
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--disc-size);
+  height: var(--disc-size);
+}
+
+.platter {
+  /* BELOW the sleeve: the record is half inside the jacket, not lying on top
+     of it. The arm reaches over both from its own layer above. */
+  z-index: 1;
+}
+
+.tonearm-layer {
+  z-index: 5;
+  pointer-events: none;
+}
+
+.disc {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  /* Album art darkened almost to black so it reads as pressed vinyl that has
+     merely taken on the record's colour, not a floating cover image. */
+  box-shadow: inset 0 0 0 2000px rgba(8, 6, 10, 0.88), 0 26px 54px rgba(0, 0, 0, 0.5);
+  animation: spin 1.8s linear infinite;
+}
+
+.disc.is-paused {
+  animation-play-state: paused;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.disc-grooves {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-radial-gradient(
+    circle at 50% 50%,
+    rgba(255, 255, 255, 0.055) 0 1px,
+    transparent 1px 4px
+  );
+  mask-image: radial-gradient(circle at 50% 50%, transparent 27%, #000 28%);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 27%, #000 28%);
+}
+
+.disc-label {
+  position: absolute;
+  inset: 33%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  text-align: center;
+}
+
+.disc-label-text {
+  font: 600 12px/1.2 var(--sf);
+  letter-spacing: 0.02em;
+  color: #241419;
+  text-transform: uppercase;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.disc-spindle {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #120b0e;
+}
+
+/* Counter-spun so the cue glyph stays upright on the still record. */
+.disc-cue {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 34px;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  transition: opacity 220ms ease;
+  pointer-events: none;
+}
+
+.disc.is-paused .disc-cue {
+  opacity: 1;
+}
+
+/* Tonearm pivots from its top-right mount and sweeps inward as the track runs.
+   Sits above the disc in z, so it rests on the record rather than under it. */
+/* Mounted at the record's top-right corner and hanging down from it, the way a
+   real deck's arm is. Height is a share of the disc so it scales with it. */
+.tonearm {
+  position: absolute;
+  top: 0;
+  right: -10px;
+  width: 20px;
+  height: 62%;
+  transform-origin: 10px 10px; /* centre of the pivot knob */
+  transition: transform 700ms cubic-bezier(0.33, 1, 0.68, 1);
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.55));
+}
+
+.tonearm-pivot {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(230, 226, 224, 0.24);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(6px);
+}
+
+.tonearm-shaft {
+  position: absolute;
+  top: 16px;
+  left: 8px;
+  width: 5px;
+  height: calc(100% - 28px);
+  border-radius: 3px;
+  background: linear-gradient(180deg, #e4e0dd, #97928f);
+}
+
+.tonearm-head {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 20px;
+  height: 26px;
+  border-radius: 3px;
+  background: #1b1b1d;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+}
+
+.deck-meta {
+  text-align: center;
+}
+
+.deck-context {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.deck-title {
+  margin: 0;
+  font: 600 clamp(17px, 2vw, 21px) / 1.3 var(--sf);
+  letter-spacing: -0.01em;
+}
+
+.deck-artist {
+  margin: 4px 0 0;
+  color: var(--ink-dim);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+/* Prev / play / next. Lives in the same auto-hiding group as the scrubber, so
+   the record is uninterrupted while you are just listening. */
+.transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity 420ms ease, transform 420ms ease;
+}
+
+.deck.chrome-up .transport {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.transport button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 8px;
+  opacity: 0.82;
+  transition: opacity 160ms ease;
+}
+
+.transport button:hover {
+  opacity: 1;
+}
+
+.transport .transport-play {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #241419;
+  opacity: 1;
+}
+
+/* -------------------------------------------------------------- scrubber */
+
+.scrubber {
+  width: min(340px, 80%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* Transient: fades out three seconds after the last interaction. */
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity 420ms ease, transform 420ms ease;
+}
+
+.deck.chrome-up .scrubber {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.scrubber-time {
+  font-size: 11px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  min-width: 32px;
+  text-align: center;
+}
+
+.scrubber input {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.24);
+  cursor: pointer;
+}
+
+.scrubber input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.scrubber input::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+
+/* ------------------------------------------------------- focus (full screen)
+
+   The record alone. The sleeve drops away, the disc takes the largest circle
+   the viewport allows, and every control fades out until the pointer moves.
+   `:fullscreen` gets its own background because the fullscreen element is
+   painted against black by default - but custom properties still inherit down
+   the normal DOM tree, so the room colour comes through --room. */
+
+.deck:fullscreen,
+.deck:-webkit-full-screen {
+  background: var(--room, #120b0e);
+  padding: 0;
+  gap: 0;
+  justify-content: center;
+}
+
+.deck.is-focus .sleeve-large {
+  /* Removed from the composition, not just hidden, so the disc can centre. */
+  display: none;
+}
+
+.deck.is-focus .deck-stage {
+  width: 100%;
+  height: 100%;
+  justify-content: center;
+}
+
+.deck.is-focus .deck-stage {
+  /* The largest circle that clears the shorter viewport axis. Both the platter
+     and the arm layer read this, so they scale as one. */
+  --disc-size: min(84vh, 84vw);
+}
+
+.deck.is-focus .platter,
+.deck.is-focus .tonearm-layer {
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.deck.is-focus .disc-label-text {
+  font-size: 15px;
+}
+
+.deck.is-focus .disc-cue {
+  font-size: 60px;
+}
+
+/* Chrome in focus mode floats over the record rather than sitting in flow,
+   so hiding it never shifts the disc. */
+.deck.is-focus .deck-controls,
+.deck.is-focus .deck-meta,
+.deck.is-focus .transport,
+.deck.is-focus .scrubber {
+  position: absolute;
+  z-index: 6;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 420ms ease;
+}
+
+.deck.is-focus .transport {
+  bottom: 62px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.deck.is-focus .deck-controls {
+  top: 22px;
+  right: 22px;
+  left: auto;
+  align-self: auto;
+  width: auto;
+}
+
+.deck.is-focus .deck-meta {
+  bottom: 126px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  width: max-content;
+}
+
+.deck.is-focus .scrubber {
+  bottom: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, 70vw);
+}
+
+.deck.is-focus.chrome-up .deck-controls,
+.deck.is-focus.chrome-up .deck-meta,
+.deck.is-focus.chrome-up .transport,
+.deck.is-focus.chrome-up .scrubber {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Hide the cursor with the chrome, the way a video player does. */
+.deck.is-focus {
+  cursor: none;
+}
+
+.deck.is-focus.chrome-up {
+  cursor: auto;
+}
+
+/* -------------------------------------------------------------- mini bar */
+
+.mini-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 auto 22px;
+  padding: 10px 18px 10px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(20px);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--sf);
+}
+
+.mini-disc {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle, #2a2226 0 1px, #161113 1px 3px);
+  animation: spin 1.8s linear infinite;
+}
+
+.mini-text {
+  display: flex;
+  flex-direction: column;
+  max-width: 42vw;
+}
+
+.mini-text strong {
+  font: 600 14px/1.2 var(--sf);
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-text em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-cta {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+/* ----------------------------------------------------------- responsive */
+
+@media (max-width: 900px) {
+  .deck-stage {
+    --disc-left: 48%;
+  }
+}
+
+@media (max-width: 720px) {
+  :root {
+    --sleeve-w: 220px;
+    --sleeve-depth: 16px;
+  }
+
+  .deck-stage {
+    flex-direction: column;
+    height: auto;
+  }
+
+  /* On narrow screens the side-by-side pose collapses; centre the disc behind
+     the sleeve instead so it still peeks out at the edges. */
+  .deck-stage {
+    --disc-size: min(78vw, 360px);
+  }
+
+  .platter,
+  .tonearm-layer {
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .sleeve-large {
+    width: min(78vw, 360px);
+    height: min(78vw, 360px);
+  }
+
+  .tonearm {
+    right: -8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disc,
+  .mini-disc,
+  .marquee-track {
+    animation: none;
+  }
+
+  .sleeve,
+  .tonearm,
+  .app,
+  .sleeve-large,
+  .scrubber,
+  .transport,
+  .deck-controls,
+  .deck-meta {
+    transition-duration: 1ms;
+    animation-duration: 1ms;
+  }
+}

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Vinyl</title>
+    <!-- No webfont link: SF Pro is Apple's system face and is reached through
+         -apple-system / BlinkMacSystemFont in the stylesheet. It is not
+         licensed for web delivery, so non-Apple machines fall back gracefully. -->
+    <!-- The Web Playback SDK must be a plain script tag; it registers a global
+         callback (onSpotifyWebPlaybackSDKReady) that our hook waits on. -->
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
