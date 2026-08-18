@@ -906,7 +906,10 @@ body {
      The pair spans roughly 1.45x the sleeve's width (the cover, plus the half
      of the disc that sticks out past it), so the width cap is divided down to
      stop the record running off the right edge on wide screens. */
-  --sleeve-size: min(78vh, 55vw);
+  /* 72vh rather than 78: the remaining band at the bottom belongs to the
+     progress bar, so the record never sits underneath it even when the bar
+     is showing. */
+  --sleeve-size: min(72vh, 55vw);
   --disc-size: calc(var(--sleeve-size) * 0.96);
   height: auto;
 
@@ -927,21 +930,23 @@ body {
 
 /* Chrome in focus mode floats over the record rather than sitting in flow,
    so hiding it never shifts the disc. */
-.deck.is-focus .deck-controls,
-.deck.is-focus .deck-meta,
+/* Full screen strips back to the record and a progress bar. The transport
+   buttons and the title block are dropped entirely: with the composition
+   scaled up they landed on top of the sleeve, and neither earns its keep here.
+   Play and pause is the record itself, arrow keys skip, and the disc label
+   already carries the track name. */
 .deck.is-focus .transport,
+.deck.is-focus .deck-meta {
+  display: none;
+}
+
+.deck.is-focus .deck-controls,
 .deck.is-focus .scrubber {
   position: absolute;
   z-index: 6;
   opacity: 0;
   pointer-events: none;
   transition: opacity 420ms ease;
-}
-
-.deck.is-focus .transport {
-  bottom: 62px;
-  left: 50%;
-  transform: translateX(-50%);
 }
 
 .deck.is-focus .deck-controls {
@@ -952,24 +957,14 @@ body {
   width: auto;
 }
 
-.deck.is-focus .deck-meta {
-  bottom: 126px;
-  left: 50%;
-  transform: translateX(-50%);
-  text-align: center;
-  width: max-content;
-}
-
 .deck.is-focus .scrubber {
-  bottom: 26px;
+  bottom: 22px;
   left: 50%;
   transform: translateX(-50%);
   width: min(420px, 70vw);
 }
 
 .deck.is-focus.chrome-up .deck-controls,
-.deck.is-focus.chrome-up .deck-meta,
-.deck.is-focus.chrome-up .transport,
 .deck.is-focus.chrome-up .scrubber {
   opacity: 1;
   pointer-events: auto;
