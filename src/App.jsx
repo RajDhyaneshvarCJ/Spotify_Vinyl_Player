@@ -111,6 +111,10 @@ export default function App() {
         setError('Player is still connecting to Spotify. Give it a moment.')
         return
       }
+      // First thing, before any await: on iOS this is what buys permission to
+      // make sound at all. Yielding first would forfeit the gesture.
+      controls.activate?.()
+
       setError(null)
       setStarting(true)
       try {

@@ -82,6 +82,59 @@ progress bar removed. Click the record to play or pause, use the arrow keys to
 skip, and press Escape or F to come back out.
 
 
+## Putting it on an iPad
+
+Running the dev server and typing your Mac's local IP into the iPad will not
+work. Spotify only accepts redirect URIs that are either `https://` or the
+loopback address `127.0.0.1`. A plain `http://192.168.x.x` address is rejected,
+so the login will fail before you get anywhere.
+
+You need an HTTPS address. Two ways to get one.
+
+### Option A: deploy it (recommended)
+
+Free static hosts will give you an HTTPS URL. Vercel, Netlify, and Cloudflare
+Pages all work, and the app is a plain static build.
+
+1. Push the project to a Git repository, or use the host's CLI to upload it.
+2. Set the build command to `npm run build` and the output directory to `dist`.
+3. Add `VITE_SPOTIFY_CLIENT_ID` as an environment variable in the host's
+   dashboard. Add `VITE_REDIRECT_URI` too, set to your deployed URL plus
+   `/callback`, for example `https://vinyl-yourname.vercel.app/callback`.
+4. Back in the Spotify dashboard, add that same callback URL as a second
+   Redirect URI. You can keep the `127.0.0.1` one for local work.
+5. Open the URL on the iPad in Safari.
+
+The app is only usable by the accounts on your allowlist, so a public URL does
+not mean public access. Anyone else who visits will get a 403.
+
+### Option B: a temporary tunnel
+
+If you only want it on the iPad occasionally and would rather not deploy, a
+tunnel gives your local server a temporary HTTPS address. Cloudflare Tunnel and
+ngrok both do this. You will need to add the tunnel's URL as a Redirect URI each
+time it changes, which is why this suits occasional use rather than daily use.
+
+### Making it feel like an app
+
+In Safari on the iPad, tap the share button and choose **Add to Home Screen**.
+It then launches without the address bar and fills the screen.
+
+### What to expect on iOS
+
+Playback works, but Apple restricts audio more tightly than desktop browsers:
+
+- Sound only starts from a tap. The app handles this by requesting audio
+  permission the moment you tap a track or the record, so it should be
+  invisible to you. If a track ever loads paused, tap the record.
+- Volume cannot be set from the page. Use the iPad's own volume buttons.
+- Audio stops when you switch apps or lock the screen. Browser audio does not
+  keep playing in the background the way the real Spotify app does.
+
+That last one is a limit of the browser, not something this app can fix. If
+background playback matters to you, the official Spotify app is the answer.
+
+
 ## About the .env file
 
 This app signs in using OAuth with PKCE, which is built for apps that have no

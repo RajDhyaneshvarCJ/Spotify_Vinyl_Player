@@ -61,6 +61,16 @@ export function usePlayer(enabled) {
     deviceId,
     state,
     error,
+    /**
+     * iOS Safari blocks audio that did not originate from a user gesture, and
+     * it counts a transfer-initiated play as autoplay. activateElement() marks
+     * the SDK's audio element as user-approved.
+     *
+     * It MUST be called synchronously inside the tap handler, before any await:
+     * once execution yields, Safari no longer considers the call part of the
+     * gesture and the track lands paused with no error.
+     */
+    activate: () => playerRef.current?.activateElement?.(),
     toggle: () => playerRef.current?.togglePlay(),
     next: () => playerRef.current?.nextTrack(),
     previous: () => playerRef.current?.previousTrack(),

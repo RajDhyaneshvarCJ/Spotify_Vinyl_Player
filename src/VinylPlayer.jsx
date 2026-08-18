@@ -86,6 +86,9 @@ export default function VinylPlayer({ state, controls, onBack, contextName }) {
   }, [controls, fullscreen, reveal])
 
   const handleDiscClick = () => {
+    // Synchronously, before anything else: iOS only grants audio permission
+    // from inside the tap itself.
+    controls.activate?.()
     controls.toggle()
     reveal()
   }
