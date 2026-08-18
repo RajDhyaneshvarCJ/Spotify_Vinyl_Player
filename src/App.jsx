@@ -9,6 +9,7 @@ import {
 } from './api.js'
 import { usePlayer } from './usePlayer.js'
 import { extractPalette } from './palette.js'
+import { needleDrop } from './needle.js'
 import CoverFlow from './CoverFlow.jsx'
 import TrackList from './TrackList.jsx'
 import VinylPlayer from './VinylPlayer.jsx'
@@ -81,9 +82,16 @@ export default function App() {
 
   useEffect(() => {
     let alive = true
-    extractPalette(focusArt).then((p) => alive && setPalette(p))
+    // Debounced: a fast swipe crosses half a dozen covers, and each one would
+    // otherwise mean a canvas read plus a full-screen gradient repaint mid-
+    // gesture. Waiting for the crate to settle keeps the swipe smooth and the
+    // room colour still lands before you've finished looking at the record.
+    const id = setTimeout(() => {
+      extractPalette(focusArt).then((p) => alive && setPalette(p))
+    }, 180)
     return () => {
       alive = false
+      clearTimeout(id)
     }
   }, [focusArt])
 
@@ -114,6 +122,7 @@ export default function App() {
       // First thing, before any await: on iOS this is what buys permission to
       // make sound at all. Yielding first would forfeit the gesture.
       controls.activate?.()
+      needleDrop()
 
       setError(null)
       setStarting(true)

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useProgress } from './usePlayer.js'
 import { useFullscreen } from './useFullscreen.js'
+import { needleDrop, needleLift } from './needle.js'
 import ScrollingText from './ScrollingText.jsx'
 
 const LINGER_MS = 3000
@@ -58,6 +59,27 @@ export default function VinylPlayer({ state, controls, onBack, contextName }) {
     hideTimer.current = setTimeout(() => setChromeUp(false), LINGER_MS)
   }, [])
 
+  const hideChrome = useCallback(() => {
+    clearTimeout(hideTimer.current)
+    setChromeUp(false)
+  }, [])
+
+  // A bare tap toggles: up if it was down, away if it was up. The three-second
+  // timer still runs, so ignoring it also puts the record back on its own.
+  const toggleChrome = useCallback(() => {
+    if (chromeUp) hideChrome()
+    else reveal()
+  }, [chromeUp, hideChrome, reveal])
+
+  // Play drops the needle; pause lifts it.
+  const play = useCallback(() => {
+    controls.activate?.()
+    if (paused) needleDrop()
+    else needleLift()
+    controls.toggle()
+    reveal()
+  }, [controls, paused, reveal])
+
   // Surface it whenever the song changes or play/pause flips.
   useEffect(() => {
     if (!track) return
@@ -105,8 +127,7 @@ export default function VinylPlayer({ state, controls, onBack, contextName }) {
       if (e.target instanceof HTMLInputElement) return
       if (e.code === 'Space') {
         e.preventDefault()
-        controls.toggle()
-        reveal()
+        play()
       }
       if (e.key.toLowerCase() === 'f') fullscreen.toggle()
       if (e.key === 'ArrowRight') skip('next')
@@ -114,7 +135,7 @@ export default function VinylPlayer({ state, controls, onBack, contextName }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [controls, fullscreen, reveal, skip])
+  }, [controls, fullscreen, play, reveal, skip])
 
   // --- one gesture handler for the whole deck -----------------------------
 
@@ -168,9 +189,12 @@ export default function VinylPlayer({ state, controls, onBack, contextName }) {
       return
     }
 
-    // A tap anywhere but the record brings the controls up. The record itself
-    // has its own job (play/pause), handled below.
-    if (!swiped.current && !e.target.closest('.disc')) reveal()
+    // A tap anywhere but the record toggles the controls — tap once to bring them
+    // up, again to send them away. The record has its own job (play/pause), and a
+    // tap that landed on a control must never take that control away.
+    if (swiped.current) return
+    if (e.target.closest('.deck-chrome, .deck-controls')) reveal()
+    else if (!e.target.closest('.disc')) toggleChrome()
   }
 
   function handlePointerCancel() {
@@ -185,11 +209,9 @@ export default function VinylPlayer({ state, controls, onBack, contextName }) {
       swiped.current = false
       return
     }
-    // Synchronously, before anything else: iOS only grants audio permission
-    // from inside the tap itself.
-    controls.activate?.()
-    controls.toggle()
-    reveal()
+    // Synchronously, before anything else: iOS only grants audio permission from
+    // inside the tap itself — for Spotify's audio element and for the needle.
+    play()
   }
 
   // Tonearm geometry. The pivot sits at the record's top-right corner and the
@@ -342,11 +364,7 @@ export default function VinylPlayer({ state, controls, onBack, contextName }) {
 
           <button
             className="transport-play"
-            onClick={() => {
-              controls.activate?.()
-              controls.toggle()
-              reveal()
-            }}
+            onClick={play}
             aria-label={paused ? 'Play' : 'Pause'}
             title={paused ? 'Play (Space)' : 'Pause (Space)'}
           >
@@ -375,6 +393,7 @@ export default function VinylPlayer({ state, controls, onBack, contextName }) {
             min="0"
             max={duration}
             value={position}
+            style={{ '--played': `${(ratio * 100).toFixed(2)}%` }}
             onChange={(e) => {
               controls.seek(Number(e.target.value))
               reveal()

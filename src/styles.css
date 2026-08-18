@@ -4,9 +4,7 @@
   --ink-faint: rgba(246, 239, 233, 0.3);
 
   --sleeve-w: 320px;
-  /* Thickness of the shelf sleeves — carries the spine, the paper top edge and
-     the back board. A real 12" jacket is closer to this than to a card. */
-  --sleeve-depth: 30px;
+  --sleeve-depth: 20px; /* thickness of the shelf sleeves, carries the spine */
 
   /* SF Pro, reached the only way it is legitimately available: as the Apple
      system face. It is not licensed for webfont delivery, so this stack degrades
@@ -288,60 +286,18 @@ html.pseudo-fullscreen-lock body {
   border: 0;
   background: transparent;
   transform-style: preserve-3d;
-  /* No transition on purpose: CoverFlow writes transform and filter every frame
-     from a single rAF loop, so the crate tracks a finger 1:1 and settles with a
-     spring. A transition on top of that only adds lag — which is exactly what
-     made the swipe feel rubbery on touch. */
-  will-change: transform;
+  /* The one animation that matters: records swinging open as you pass them.
+     A finger-tracking rAF version was tried and felt heavier on an iPad — every
+     frame touched a dozen sleeves — so the stepped transition stays. */
+  transition: transform 520ms cubic-bezier(0.22, 0.8, 0.24, 1);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Depth of field and distance dimming never touch a face element itself: a
-   filter, or an opacity below 1, turns a `transform-style: preserve-3d` face into
-   a flattened group and the box loses its z-sorting — which painted the back
-   board over the cover. So the blur goes on the face's ordinary children, and
-   the dimming is a black overlay drawn inside each face. CoverFlow sets
-   --face-filter and --face-dim on the sleeve. */
-.sleeve-front > *,
-.sleeve-edge-text {
-  filter: var(--face-filter, none);
-}
-
-.sleeve-front::after,
-.sleeve-back::after,
-.sleeve-top::after,
-.sleeve-edge::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, var(--face-dim, 0));
-  pointer-events: none;
-}
-
-/* The floor the crate stands on: a soft pool of shade laid flat under the row,
-   which is what sells the depth more than any single sleeve detail. */
-.crate-floor {
-  position: absolute;
-  left: 50%;
-  bottom: 2%;
-  width: min(1500px, 160%);
-  height: 42%;
-  transform: translateX(-50%) translateZ(-140px) rotateX(78deg);
-  background: radial-gradient(58% 62% at 50% 26%, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0) 72%);
-  filter: blur(3px);
-  pointer-events: none;
-}
-
-/* The box is built around its own centre plane: every face carries an explicit
-   translateZ, and none is left untransformed. An untransformed child inside a
-   preserve-3d parent gets painted (and hit-tested) above its 3D siblings in
-   Chromium regardless of their z — which is what put the back board over the
-   album art. */
 .sleeve-front {
   position: absolute;
   inset: 0;
-  transform: translateZ(calc(var(--sleeve-depth) / 2));
+  transform: translateZ(var(--sleeve-depth));
   transform-style: preserve-3d;
 }
 
@@ -363,69 +319,9 @@ html.pseudo-fullscreen-lock body {
   box-shadow: 0 44px 96px rgba(0, 0, 0, 0.62);
 }
 
-/* A raking sheen across the printed face. Without it the cover reads as a flat
-   image; with it, as a laminated card catching the light in the room. */
-.sleeve-gloss {
-  position: absolute;
-  inset: 0;
-  border-radius: 2px;
-  pointer-events: none;
-  background: linear-gradient(
-    104deg,
-    rgba(255, 255, 255, 0.18) 0%,
-    rgba(255, 255, 255, 0.05) 24%,
-    rgba(255, 255, 255, 0) 44%,
-    rgba(0, 0, 0, 0.2) 100%
-  );
-}
-
-/* Back board of the box, half a depth behind the centre plane. */
-.sleeve-back {
-  position: absolute;
-  inset: 0;
-  border-radius: 2px;
-  transform: translateZ(calc(var(--sleeve-depth) / -2));
-  background: linear-gradient(150deg, #1d1517, #100b0d);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-}
-
-/* The open top edge: paper, then the dark lip of the record inside it. Hinged on
-   the top border and swung back so it spans the box from back board to cover. */
-.sleeve-top {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: var(--sleeve-depth);
-  transform-origin: 50% 0%;
-  transform: translateZ(calc(var(--sleeve-depth) / -2)) rotateX(90deg);
-  background: linear-gradient(
-    180deg,
-    #d2c7b8 0%,
-    #b7a897 34%,
-    #6b6158 54%,
-    #241d1f 68%,
-    #14100f 100%
-  );
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-
-/* Contact shadow where the sleeve meets the floor. */
-.sleeve-shadow {
-  position: absolute;
-  left: -10%;
-  right: -10%;
-  bottom: -14px;
-  height: 30px;
-  transform: translateZ(0) rotateX(82deg);
-  background: radial-gradient(50% 58% at 50% 50%, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0) 74%);
-  pointer-events: none;
-}
-
-/* The two side faces of the box. Each is hinged on the border it shares with
-   the front face and swung 90deg to span the depth. backface-visibility means
-   only the one actually facing the camera renders. */
+/* The two side faces of the box. Each is hinged on the border it shares with the
+   front face and swung 90deg to span the depth. backface-visibility means only
+   the one actually facing the camera renders. */
 .sleeve-edge {
   position: absolute;
   top: 0;
@@ -446,19 +342,19 @@ html.pseudo-fullscreen-lock body {
    so each one's printed side faces away from the record — left face pointing
    left, right face pointing right. Hinging them outside the border (the obvious
    reading) turns both normals inward, and you end up looking at the back of the
-   spine with the title mirrored. `backface-visibility` then culls whichever
-   spine is turned away, so exactly one is ever readable. */
+   spine with the title mirrored. `backface-visibility` then culls whichever spine
+   is turned away, so exactly one is ever readable. */
 .sleeve-edge-left {
   left: 0;
   transform-origin: 0% 50%;
-  transform: translateZ(calc(var(--sleeve-depth) / -2)) rotateY(-90deg);
+  transform: rotateY(-90deg);
   border-radius: 2px 0 0 2px;
 }
 
 .sleeve-edge-right {
   right: 0;
   transform-origin: 100% 50%;
-  transform: translateZ(calc(var(--sleeve-depth) / -2)) rotateY(90deg);
+  transform: rotateY(90deg);
   border-radius: 0 2px 2px 0;
 }
 
@@ -1028,10 +924,10 @@ html.pseudo-fullscreen-lock body {
 /* -------------------------------------------------------------- scrubber */
 
 .scrubber {
-  width: min(340px, 80%);
+  width: min(420px, 86%);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   /* Transient: fades out three seconds after the last interaction. */
   opacity: 0;
   transform: translateY(10px);
@@ -1047,39 +943,64 @@ html.pseudo-fullscreen-lock body {
 }
 
 .scrubber-time {
-  font-size: 11px;
-  color: var(--ink-faint);
+  font-size: 12px;
+  color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
-  min-width: 32px;
+  min-width: 38px;
   text-align: center;
 }
 
+/* The bar is drawn on the track pseudo-element, not on the input's own
+   background: padding the input to reach a finger-sized hit area clipped the
+   background to a 3px sliver, which is why only the thumb was visible. The input
+   is a transparent 26px-tall grab strip; the track inside it is the visible bar,
+   and the played portion is a gradient stop set from --played. */
 .scrubber input {
   flex: 1;
   -webkit-appearance: none;
   appearance: none;
-  height: 3px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.24);
+  height: 26px;
+  margin: 0;
+  background: transparent;
   cursor: pointer;
-  /* Fingers need more than three pixels of target. */
-  padding: 14px 0;
-  background-clip: content-box;
   touch-action: none;
+}
+
+.scrubber input::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    to right,
+    var(--ink) 0 var(--played, 0%),
+    rgba(255, 255, 255, 0.22) var(--played, 0%) 100%
+  );
 }
 
 .scrubber input::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px; /* centres the thumb on the 6px track */
   border-radius: 50%;
   background: var(--ink);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+.scrubber input::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.scrubber input::-moz-range-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--ink);
 }
 
 .scrubber input::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border: 0;
   border-radius: 50%;
   background: var(--ink);
@@ -1277,7 +1198,7 @@ html.pseudo-fullscreen-lock body {
 @media (max-width: 720px) {
   :root {
     --sleeve-w: 220px;
-    --sleeve-depth: 22px;
+    --sleeve-depth: 16px;
   }
 
   .deck-stage {
